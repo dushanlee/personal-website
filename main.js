@@ -79,13 +79,39 @@
     var spy = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting) {
-          navLinks.forEach(function (a) { a.classList.remove("active"); });
+          navLinks.forEach(function (a) { a.classList.remove("active"); a.removeAttribute("aria-current"); });
           var a = byId[entry.target.id];
-          if (a) a.classList.add("active");
+          if (a) { a.classList.add("active"); a.setAttribute("aria-current", "true"); }
         }
       });
     }, { rootMargin: "-45% 0px -50% 0px", threshold: 0 });
     Object.keys(byId).forEach(function (id) { spy.observe(document.getElementById(id)); });
+  }
+
+  /* ----- Copy email ----- */
+  var copyBtn = document.getElementById("copyEmail");
+  if (copyBtn) {
+    var label = copyBtn.querySelector(".copy-label");
+    var original = label ? label.textContent : "Copy email";
+    copyBtn.addEventListener("click", function () {
+      var email = copyBtn.getAttribute("data-email");
+      var done = function () {
+        copyBtn.classList.add("copied");
+        if (label) label.textContent = "Copied!";
+        setTimeout(function () {
+          copyBtn.classList.remove("copied");
+          if (label) label.textContent = original;
+        }, 1800);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(email).then(done).catch(done);
+      } else {
+        var t = document.createElement("textarea");
+        t.value = email; document.body.appendChild(t); t.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(t); done();
+      }
+    });
   }
 
   /* ----- Footer year ----- */
@@ -97,20 +123,32 @@
   if (lightbox) {
     var lbImg = lightbox.querySelector("img");
     var lbClose = lightbox.querySelector(".lightbox-close");
-    var open = function (src, alt) {
+    var lastFocus = null;
+    var open = function (src, alt, trigger) {
+      lastFocus = trigger || document.activeElement;
       lbImg.src = src; lbImg.alt = alt || "";
       lightbox.classList.add("open");
       document.body.style.overflow = "hidden";
+      if (lbClose) lbClose.focus();
     };
-    var close = function () { lightbox.classList.remove("open"); document.body.style.overflow = ""; };
+    var close = function () {
+      lightbox.classList.remove("open");
+      document.body.style.overflow = "";
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    };
     document.querySelectorAll("[data-lightbox]").forEach(function (el) {
-      el.addEventListener("click", function () {
-        var img = el.querySelector("img");
-        if (img) open(img.src, img.alt);
+      el.setAttribute("tabindex", "0");
+      el.setAttribute("role", "button");
+      var trigger = function () { var img = el.querySelector("img"); if (img) open(img.src, img.alt, el); };
+      el.addEventListener("click", trigger);
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); trigger(); }
       });
     });
     if (lbClose) lbClose.addEventListener("click", close);
     lightbox.addEventListener("click", function (e) { if (e.target === lightbox) close(); });
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && lightbox.classList.contains("open")) close();
+    });
   }
 })();
